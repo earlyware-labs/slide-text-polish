@@ -1,6 +1,7 @@
 ---
 name: slide-text-polish
 description: PowerPointやスライド資料の文章量・改行位置・和文フォント・読みやすさをチェックし、日本語のプレゼン向けに修正する。スライド作成後や.pptxのレビュー依頼時に使う。
+license: MIT
 ---
 
 # スライド文章チェック＆修正（日本語）

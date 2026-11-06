@@ -61,3 +61,15 @@ uv run --with python-pptx --with budoux python lint.py short.pptx --lines C:\wor
 - [jp-business-slides](https://github.com/haihan19955/jp-business-slides)（PowerPoint 実機の改行位置による泣き別れ修正、`ja-JP` と禁則処理の検証）
 - [pptx-ja](https://github.com/k-ibaraki/my-agent-skills/tree/main/skills/pptx-ja)（日本語の言語設定・フォント・スペルミス印の対策）
 - [consulting-pptx-skill](https://github.com/carnot-tech/jinba-consulting-pptx-skill)（規約と機械チェックの組み合わせ）
+
+## ライセンス
+
+[MIT License](LICENSE) © 2026 Earlyware Labs
+
+実行時に uv で取得する依存パッケージ（同梱はしていません）:
+
+| パッケージ | ライセンス |
+|---|---|
+| [python-pptx](https://github.com/scanny/python-pptx) | MIT |
+| [BudouX](https://github.com/google/budoux) | Apache-2.0 |
+| [lxml](https://lxml.de/)（python-pptx の依存） | BSD-3-Clause |
