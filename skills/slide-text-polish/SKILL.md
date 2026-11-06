@@ -9,8 +9,10 @@ AIが作った既存の .pptx を後から直すスキル。体裁（言語・�
 
 スクリプトはこのスキルの `scripts/` にある。作業用フォルダにコピーしてから使う。
 
+Python は [uv](https://docs.astral.sh/uv/) で実行する。依存パッケージ（python-pptx・budoux）を `--with` で指定すれば自動で入る。`pip install` や `python` の直接実行はしない。
+
 ```bash
-pip install python-pptx budoux   # budoux が入らない環境では簡易な文節分割で動く
+uv run --with python-pptx --with budoux python scripts/lint.py --help
 ```
 
 ## いつ使うか
@@ -58,13 +60,13 @@ pip install python-pptx budoux   # budoux が入らない環境では簡易な�
 
 ### 1. 言語・フォントの修正（自動、最優先）
 ```bash
-python scripts/fix_lang_font.py 元.pptx work.pptx --font 游ゴシック
+uv run --with python-pptx --with budoux python scripts/fix_lang_font.py 元.pptx work.pptx --font 游ゴシック
 ```
 日本語のrun・段落末を `ja-JP` にし、`err` を消し、和文フォントが未指定・欧文なら設定、斜体を解除。テーマの東アジアフォントも直す。元ファイルは上書きしない。
 
 ### 2. チェック
 ```bash
-python scripts/lint.py work.pptx --glossary glossary.txt --json issues.json
+uv run --with python-pptx --with budoux python scripts/lint.py work.pptx --glossary glossary.txt --json issues.json
 ```
 テキストボックス、グループ内の図形、表のセル、グラフのタイトル・軸・項目名・凡例まで調べ、文字数・項目数・文字サイズ・言語・フォント・改行の問題を一覧にする。改行は枠の幅からの推定（手順6で実機の値に置き換える）。
 
@@ -75,11 +77,11 @@ python scripts/lint.py work.pptx --glossary glossary.txt --json issues.json
 3. 1項目に2つの情報があれば分ける、項目が多ければスライドを分ける
 4. それでも収まらないときだけボックス幅を広げる。フォントサイズは基準値未満にしない
 
-書式（色・太字・サイズ）を保つため、python-pptx で run のテキストだけを置き換える。runが複数ある段落は強調部分の書式が残るよう対応を取る。修正前後を記録しておく。
+書式（色・太字・サイズ）を保つため、python-pptx で run のテキストだけを置き換える（書き換え用のスクリプトは `uv run --with python-pptx python 書き換え.py` で実行する）。runが複数ある段落は強調部分の書式が残るよう対応を取る。修正前後を記録しておく。
 
 ### 4. 改悪チェック（自動、必須）
 ```bash
-python scripts/check_loss.py work.pptx short.pptx --glossary glossary.txt
+uv run --with python-pptx --with budoux python scripts/check_loss.py work.pptx short.pptx --glossary glossary.txt
 ```
 数字（単位込み）・カタカナ語や英字の用語・辞書の語が資料から消えていないか、否定表現が変わっていないかを照合する（別のスライドに移しただけなら消失扱いにしない）。**指摘が出たら書き直すか、報告で「要確認」として目立たせる。** 文の意味（主語・因果・条件）が変わっていないかは、Claudeが修正前後を並べて読み直して確認する。
 
@@ -99,7 +101,7 @@ python scripts/check_loss.py work.pptx short.pptx --glossary glossary.txt
 Windows：
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\check_ppt.ps1 -Path C:\work\short.pptx -Out C:\work\check
-python scripts\lint.py short.pptx --lines C:\work\check\lines.tsv --glossary glossary.txt
+uv run --with python-pptx --with budoux python scripts\lint.py short.pptx --lines C:\work\check\lines.tsv --glossary glossary.txt
 ```
 
 それ以外：

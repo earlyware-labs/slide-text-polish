@@ -1,6 +1,10 @@
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["python-pptx", "budoux"]
+# ///
 """日本語テキストの言語指定・和文フォント・斜体を一括修正する。
 
-使い方: python fix_lang_font.py 入力.pptx 出力.pptx [--font 游ゴシック]
+使い方: uv run --with python-pptx --with budoux python fix_lang_font.py 入力.pptx 出力.pptx [--font 游ゴシック]
 - 日本語を含む run と段落末を lang="ja-JP" に（PowerPoint の日本語禁則処理を効かせる）
 - 英語辞書のスペルミス印 err="1" を削除
 - 和文フォント <a:ea> が未指定・空・欧文なら指定フォントを設定

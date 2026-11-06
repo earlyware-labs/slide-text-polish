@@ -1,6 +1,10 @@
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["python-pptx", "budoux"]
+# ///
 """文章を短くした後、大事な情報が消えていないかを修正前後で照合する。
 
-使い方: python check_loss.py 修正前.pptx 修正後.pptx [--glossary glossary.txt]
+使い方: uv run --with python-pptx --with budoux python check_loss.py 修正前.pptx 修正後.pptx [--glossary glossary.txt]
 - 段落単位: 否定表現の数の変化
 - 資料全体: 数字（単位込み）・カタカナ語/英字の用語・辞書の語が完全に消えたもの
   （別のスライドに移した場合は消失扱いにしない）

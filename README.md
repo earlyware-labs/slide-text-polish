@@ -33,27 +33,27 @@ glossary.example.txt        # 用語辞書の例
 ### Claude Code
 ```bash
 cp -r skills/slide-text-polish ~/.claude/skills/
-pip install python-pptx budoux
+# Python の実行には uv を使う（依存パッケージは --with で自動インストール）
 ```
 
 ### スクリプトを直接使う
 ```bash
 cd skills/slide-text-polish/scripts
-python fix_lang_font.py 提案書.pptx work.pptx
-python lint.py work.pptx --glossary glossary.txt
+uv run --with python-pptx --with budoux python fix_lang_font.py 提案書.pptx work.pptx
+uv run --with python-pptx --with budoux python lint.py work.pptx --glossary glossary.txt
 # （文章を書き直して short.pptx に保存した後）
-python check_loss.py work.pptx short.pptx --glossary glossary.txt
+uv run --with python-pptx --with budoux python check_loss.py work.pptx short.pptx --glossary glossary.txt
 ```
 
 Windows で実機の改行を使う場合:
 ```powershell
 powershell -ExecutionPolicy Bypass -File check_ppt.ps1 -Path C:\work\short.pptx -Out C:\work\check
-python lint.py short.pptx --lines C:\work\check\lines.tsv
+uv run --with python-pptx --with budoux python lint.py short.pptx --lines C:\work\check\lines.tsv
 ```
 
 ## 制限
 - 改行の推定（実機を使わない場合）は枠の幅と文字サイズからの目安です
-- BudouX が無い環境では文字種の切れ目による簡易な文節分割になり、精度が下がります
+- BudouX が使えない環境では文字種の切れ目による簡易な文節分割になり、精度が下がります
 - `check_ppt.ps1` と `render_mac.sh` は実機での動作確認がまだです
 - 改悪チェックは数字・用語・否定表現の照合で、文の意味の変化までは判定しません（Claude が読み直して確認します）
 

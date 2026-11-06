@@ -1,9 +1,13 @@
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["python-pptx", "budoux"]
+# ///
 """スライドの文章量・フォント・言語・改行をチェックして一覧にする。
 
 使い方:
-  python lint.py deck.pptx                      # 改行は文字幅からの推定
-  python lint.py deck.pptx --lines lines.tsv    # PowerPoint 実機の改行（check_ppt.ps1 の出力）を使う
-  python lint.py deck.pptx --glossary glossary.txt --json out.json
+  uv run --with python-pptx --with budoux python lint.py deck.pptx                      # 改行は文字幅からの推定
+  uv run --with python-pptx --with budoux python lint.py deck.pptx --lines lines.tsv    # PowerPoint 実機の改行（check_ppt.ps1 の出力）を使う
+  uv run --with python-pptx --with budoux python lint.py deck.pptx --glossary glossary.txt --json out.json
 """
 import argparse
 import csv
