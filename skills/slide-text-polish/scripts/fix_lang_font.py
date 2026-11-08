@@ -2,7 +2,7 @@
 # requires-python = ">=3.10"
 # dependencies = ["python-pptx", "budoux"]
 # ///
-"""日本語テキストの言語指定・和文フォント・斜体を一括修正する。
+"""日本語テキストの言語指定・和文フォント・斜体・箇条書きを一括修正する。
 
 使い方: uv run --with python-pptx --with budoux python fix_lang_font.py 入力.pptx 出力.pptx [--font 游ゴシック]
 - 日本語を含む run と段落末を lang="ja-JP" に（PowerPoint の日本語禁則処理を効かせる）
@@ -10,6 +10,9 @@
 - 和文フォント <a:ea> が未指定・空・欧文なら指定フォントを設定
 - 日本語の斜体を解除
 - テーマの東アジアフォントが空・欧文なら同じく設定
+- 「・」などを文字で打った箇条書きを本物の箇条書き記号＋ぶら下げインデントにし、
+  その直後の記号の無い段落（Enter で改行した続き）は段落内改行でつなぐ
+- 箇条書き記号があるのにぶら下げインデントが無い段落にぶら下げを設定
 """
 import argparse
 import sys
@@ -18,6 +21,7 @@ from lxml import etree
 from pptx import Presentation
 from pptx.oxml.ns import qn
 
+from bullets import fix_bullets
 from common import JA, WESTERN, text_frames
 
 # a:rPr 内の子要素の順序（スキーマ順）
@@ -47,8 +51,14 @@ def set_ea(rPr, font):
 
 
 def fix(prs, font):
-    stats = {'lang': 0, 'err': 0, 'font': 0, 'italic': 0}
-    for _, _, _, tf, _ in text_frames(prs):
+    stats = {'lang': 0, 'err': 0, 'font': 0, 'italic': 0, 'bullet': 0, 'hanging': 0}
+    merged = []
+    for i, where, kind, tf, sh in text_frames(prs):
+        if kind != 'chart':
+            c, h, m = fix_bullets(tf, sh, font)
+            stats['bullet'] += c
+            stats['hanging'] += h
+            merged += [(i, where, a, b) for a, b in m]
         for p in tf.paragraphs:
             if not JA.search(p.text):
                 continue
@@ -84,7 +94,7 @@ def fix(prs, font):
                     rel.target_part._blob = etree.tostring(theme, xml_declaration=True,
                                                            encoding='UTF-8', standalone=True)
                     stats['theme'] = stats.get('theme', 0) + 1
-    return stats
+    return stats, merged
 
 
 def main():
@@ -96,10 +106,14 @@ def main():
     if a.src == a.dst:
         sys.exit('元ファイルは上書きしません。出力先を別名にしてください')
     prs = Presentation(a.src)
-    stats = fix(prs, a.font)
+    stats, merged = fix(prs, a.font)
     prs.save(a.dst)
     Presentation(a.dst)  # 壊れていないか開き直して確認
     print('修正件数:', stats)
+    if merged:
+        print('箇条書きの続きとして段落内改行でつないだ段落（意図どおりか要確認）:')
+        for i, where, a, b in merged:
+            print(f'  S{i} [{where}] 「{a}」 ← 「{b}」')
 
 
 if __name__ == '__main__':

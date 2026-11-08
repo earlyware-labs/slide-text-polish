@@ -18,6 +18,7 @@ from pptx import Presentation
 from pptx.oxml.ns import qn
 from pptx.util import Pt
 
+from bullets import bullet_issues
 from breaks import HEAD_NG, TAIL_NG, break_points, load_glossary
 from common import JA, WESTERN, chart_labels, text_frames, width
 
@@ -69,7 +70,7 @@ def load_lines(path):
     d = defaultdict(list)
     with open(path, encoding='utf-8-sig') as f:
         for row in csv.DictReader(f, delimiter='\t'):
-            d[(int(row['slide']), row['shape'], int(row['para']))].append(row['text'])
+            d[(int(row['slide']), row['id'], int(row['para']))].append(row['text'])
     return d
 
 
@@ -94,6 +95,12 @@ def line_issues(lines, glossary):
     return issues
 
 
+def shape_key(sh, where, kind):
+    """lines.tsv と照合する図形のキー（id。表のセルは id[行,列]）"""
+    key = str(sh.shape_id)
+    return key + where[where.rfind('['):] if kind == 'cell' else key
+
+
 def lint(path, lines_tsv=None, glossary=()):
     prs = Presentation(path)
     real = load_lines(lines_tsv) if lines_tsv else None
@@ -108,6 +115,9 @@ def lint(path, lines_tsv=None, glossary=()):
         paras = [p for p in tf.paragraphs if p.text.strip()]
         if k == 'text' and len(paras) > MAX_ITEMS + 1:
             add(i, where, k, f'項目が多い({len(paras)})', paras[0].text)
+        if k in ('text', 'cell'):
+            for pi, msg in bullet_issues(tf, sh):
+                add(i, where, k, msg, tf.paragraphs[pi - 1].text.replace('', '⏎'))
         for pi, p in enumerate(tf.paragraphs, 1):
             text = p.text.replace('\v', '')
             if not text.strip():
@@ -142,7 +152,7 @@ def lint(path, lines_tsv=None, glossary=()):
                 break
             # 改行
             if real is not None:
-                lines = real.get((i, where, pi))
+                lines = real.get((i, shape_key(sh, where, kind), pi))
             else:
                 lines = estimate_lines(text, sh, tf, size) if k in ('text', 'title') else None
             if lines:

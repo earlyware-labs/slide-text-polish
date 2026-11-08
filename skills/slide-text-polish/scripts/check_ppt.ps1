@@ -1,6 +1,7 @@
 ﻿# PowerPoint 実機（COM）でスライドを JPEG に書き出し、実際に表示された行を lines.tsv に保存する。
 # 使い方: powershell -ExecutionPolicy Bypass -File check_ppt.ps1 -Path <pptxのフルパス> -Out <出力フォルダ>
-# 出力: slide01.jpg ...、lines.tsv（slide, shape, para, line, text）→ lint.py --lines で使う
+# 出力: slide01.jpg ...、lines.tsv（slide, shape, id, para, line, text）→ lint.py --lines で使う
+# 図形は id で照合する（COM は既定のプレースホルダー名を英語で返し、ファイル内の名前と一致しないため）
 param(
   [Parameter(Mandatory = $true)][string]$Path,
   [Parameter(Mandatory = $true)][string]$Out
@@ -10,16 +11,16 @@ $Path = (Resolve-Path $Path).Path
 New-Item -ItemType Directory -Force $Out | Out-Null
 $Out = (Resolve-Path $Out).Path
 $rows = New-Object System.Collections.Generic.List[string]
-$rows.Add("slide`tshape`tpara`tline`ttext")
+$rows.Add("slide`tshape`tid`tpara`tline`ttext")
 
-function Dump-Text($slideNo, $name, $tf) {
+function Dump-Text($slideNo, $name, $id, $tf) {
   if (-not $tf.HasText) { return }
   $tr = $tf.TextRange
   for ($p = 1; $p -le $tr.Paragraphs().Count; $p++) {
     $para = $tr.Paragraphs($p)
     for ($l = 1; $l -le $para.Lines().Count; $l++) {
       $t = $para.Lines($l).Text -replace "[`r`n`v]", "" -replace "`t", " "
-      $rows.Add("$slideNo`t$name`t$p`t$l`t$t")
+      $rows.Add("$slideNo`t$name`t$id`t$p`t$l`t$t")
     }
   }
 }
@@ -33,12 +34,13 @@ function Walk($slideNo, $shapes, $prefix) {
       for ($r = 1; $r -le $tb.Rows.Count; $r++) {
         for ($c = 1; $c -le $tb.Columns.Count; $c++) {
           # lint.py と合わせるため 0 始まりで出力
-          Dump-Text $slideNo ("{0}[{1},{2}]" -f $name, ($r - 1), ($c - 1)) $tb.Cell($r, $c).Shape.TextFrame
+          $cell = "[{0},{1}]" -f ($r - 1), ($c - 1)
+          Dump-Text $slideNo "$name$cell" "$($sh.Id)$cell" $tb.Cell($r, $c).Shape.TextFrame
         }
       }
       continue
     }
-    if ($sh.HasTextFrame) { Dump-Text $slideNo $name $sh.TextFrame }
+    if ($sh.HasTextFrame) { Dump-Text $slideNo $name "$($sh.Id)" $sh.TextFrame }
   }
 }
 
