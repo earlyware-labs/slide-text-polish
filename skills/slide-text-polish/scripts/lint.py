@@ -105,6 +105,7 @@ def lint(path, lines_tsv=None, glossary=()):
     prs = Presentation(path)
     real = load_lines(lines_tsv) if lines_tsv else None
     out = []
+    stale = []  # lines.tsv と本文が一致しない段落
     ea_fonts = defaultdict(int)
 
     def add(i, where, kind, msg, text):
@@ -153,6 +154,11 @@ def lint(path, lines_tsv=None, glossary=()):
             # 改行
             if real is not None:
                 lines = real.get((i, shape_key(sh, where, kind), pi))
+                # lines.tsv がこのファイルのものか（修正前のファイルで書き出したものではないか）
+                if kind in ('text', 'cell') and (
+                        lines is None or ''.join(lines) != text.replace('\t', ' ')):
+                    stale.append(f'S{i} [{where}] {text[:30]}')
+                    lines = None
             else:
                 # 段落内改行ごとに分け、ぶら下げ（marL）の分だけ幅を狭めて推定する
                 marL = int(p._p.pPr.get('marL') or 0) if p._p.pPr is not None else 0
@@ -172,7 +178,7 @@ def lint(path, lines_tsv=None, glossary=()):
     for i, name, kind, label in chart_labels(prs):
         if width(label) > LIMIT[kind]:
             add(i, name, kind, f'グラフの{"項目名" if kind == "category" else "系列名"}が長い({width(label):.0f}字)', label)
-    return out, dict(ea_fonts), 'PowerPoint実機' if real is not None else '推定'
+    return out, dict(ea_fonts), 'PowerPoint実機' if real is not None else '推定', stale
 
 
 def main():
@@ -183,8 +189,15 @@ def main():
     ap.add_argument('--json')
     a = ap.parse_args()
     gl = load_glossary(a.glossary)
-    issues, fonts, mode = lint(a.pptx, a.lines, gl)
+    issues, fonts, mode, stale = lint(a.pptx, a.lines, gl)
     print(f'改行の判定: {mode} / 指摘 {len(issues)} 件 / 和文フォント: {fonts or "指定なし"}')
+    if mode == '推定':
+        print('  ※改行は推定。実機での確認（SKILL.md 手順6）が済むまで完了にしない')
+    elif stale:
+        print(f'  ※lines.tsv と本文が一致しない段落が {len(stale)} 件（その段落は改行を判定していない）。'
+              'このファイルで check_ppt.ps1 を実行し直す')
+        for s in stale[:5]:
+            print(f'    {s}')
     if len(fonts) > 2:
         print('  和文フォントが3種類以上。統一を検討')
     for x in issues:
