@@ -19,7 +19,7 @@ skills/slide-text-polish/
     ├── common.py           # グループ・表・グラフを含む全テキストの走査
     ├── fix_lang_font.py    # 言語・和文フォント・斜体・箇条書きの一括修正
     ├── bullets.py          # 箇条書き・ラベル付きの段落のぶら下げと続きの段落の判定・修正
-    ├── lint.py             # 文章量・文字サイズ・言語・フォント・改行のチェック
+    ├── lint.py             # 文章量・言語・フォント・箇条書き・改行のチェック
     ├── breaks.py           # 改行してよい位置（BudouX、無ければ簡易分割）
     ├── check_loss.py       # 書き直しによる情報の消失チェック
     ├── check_ppt.ps1       # Windows: PowerPoint 実機で JPEG＋実際の行を書き出す

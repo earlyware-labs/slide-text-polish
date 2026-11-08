@@ -23,7 +23,6 @@ from breaks import HEAD_NG, TAIL_NG, break_points, load_glossary
 from common import JA, WESTERN, chart_labels, text_frames, width
 
 LIMIT = {'title': 20, 'text': 25, 'cell': 15, 'chart': 15, 'category': 8, 'series': 8}
-MIN_PT = {'title': 28, 'text': 18, 'cell': 12, 'chart': 12}
 MAX_ITEMS = 5
 
 
@@ -125,9 +124,7 @@ def lint(path, lines_tsv=None, glossary=()):
                 continue
             if width(text) > LIMIT[k]:
                 add(i, where, k, f'長い({width(text):.0f}字>{LIMIT[k]})', text)
-            size = para_size(p)
-            if size and size.pt < MIN_PT[k]:
-                add(i, where, k, f'文字が小さい({size.pt:.0f}pt<{MIN_PT[k]})', text)
+            size = para_size(p)  # 改行の推定に使う。文字サイズ自体は指摘しない（変更しない方針）
             if k == 'text' and text.rstrip().endswith('。') and len(paras) > 1:
                 add(i, where, k, '箇条書きの文末に「。」', text)
             for r in p.runs:
