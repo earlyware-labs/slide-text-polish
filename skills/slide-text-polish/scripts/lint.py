@@ -18,7 +18,7 @@ from pptx import Presentation
 from pptx.oxml.ns import qn
 from pptx.util import Pt
 
-from bullets import bullet_issues
+from bullets import bullet_issues, label_without_hanging
 from breaks import HEAD_NG, TAIL_NG, break_points, load_glossary
 from common import JA, WESTERN, chart_labels, text_frames, width
 
@@ -41,10 +41,10 @@ def para_size(p):
     return None
 
 
-def estimate_lines(text, sh, tf, size):
+def estimate_lines(text, sh, tf, size, marL=0):
     """枠の幅と文字サイズから折り返しを推定（目安）"""
     try:
-        inner = sh.width - (tf.margin_left or 91440) - (tf.margin_right or 91440)
+        inner = sh.width - (tf.margin_left or 91440) - (tf.margin_right or 91440) - marL
     except Exception:
         return [text]
     per_line = max(1.0, inner / (size or Pt(18)))
@@ -117,7 +117,7 @@ def lint(path, lines_tsv=None, glossary=()):
             add(i, where, k, f'項目が多い({len(paras)})', paras[0].text)
         if k in ('text', 'cell'):
             for pi, msg in bullet_issues(tf, sh):
-                add(i, where, k, msg, tf.paragraphs[pi - 1].text.replace('', '⏎'))
+                add(i, where, k, msg, tf.paragraphs[pi - 1].text.replace('\v', '⏎'))
         for pi, p in enumerate(tf.paragraphs, 1):
             text = p.text.replace('\v', '')
             if not text.strip():
@@ -154,10 +154,15 @@ def lint(path, lines_tsv=None, glossary=()):
             if real is not None:
                 lines = real.get((i, shape_key(sh, where, kind), pi))
             else:
-                lines = estimate_lines(text, sh, tf, size) if k in ('text', 'title') else None
+                # 段落内改行ごとに分け、ぶら下げ（marL）の分だけ幅を狭めて推定する
+                marL = int(p._p.pPr.get('marL') or 0) if p._p.pPr is not None else 0
+                lines = [ln for seg in p.text.split('\v')
+                         for ln in estimate_lines(seg, sh, tf, size, marL)] if k in ('text', 'title') else None
             if lines:
                 if k == 'title' and len(lines) > 1:
                     add(i, where, k, f'タイトルが{len(lines)}行', text)
+                if k in ('text', 'cell') and len(lines) > 1 and label_without_hanging(p._p):
+                    add(i, where, k, 'ラベル付きの段落が折り返すが、ぶら下げが無い（2行目がラベルの下に来る）', text)
                 if k == 'text' and len(lines) > 2:
                     add(i, where, k, f'{len(lines)}行に折り返し', text)
                 if k == 'cell' and len(lines) > 1:

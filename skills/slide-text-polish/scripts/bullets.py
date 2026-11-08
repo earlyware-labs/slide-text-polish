@@ -1,8 +1,10 @@
-"""箇条書きの記号とぶら下げインデント。
+"""箇条書きの記号・ラベル付きの段落と、ぶら下げインデント。
 
 AI製の資料では「・」を文字で打ち、改行を段落の区切り（Enter）や空白で揃えていることが多い。
 この形だと2行目以降が記号の下（段落の左端）に来るため、本物の箇条書き記号＋ぶら下げインデント
 （marL＝本文の開始位置、indent＝-記号の幅）に直し、続きの段落は段落内改行（<a:br/>）でつなぐ。
+「共通の注意 本文」のように強調したラベルで始まる段落も、ラベルの後をタブにしてラベルの幅でぶら下げる
+（タブは本文をぶら下げ位置まで送るので、ラベル幅の見積もりがずれても2行目と本文の先頭は揃う）。
 """
 import copy
 import re
@@ -115,10 +117,12 @@ def _insert_ordered(pPr, el):
     pPr.append(el)
 
 
-def set_hanging(p_el, sh, char=None, font=None):
-    """ぶら下げインデントを設定する。char を渡すとその記号の箇条書きにする（記号の位置は元のまま）"""
+def set_hanging(p_el, sh, char=None, font=None, w=None):
+    """ぶら下げインデントを設定する。char を渡すとその記号の箇条書きにする（記号の位置は元のまま）。
+    w はぶら下げの幅（EMU）。省略時は全角の記号1文字分"""
     pPr = p_el.get_or_add_pPr()
-    w = font_size(p_el, sh) * 127  # 1/100 pt → EMU。全角の記号1文字分
+    if w is None:
+        w = font_size(p_el, sh) * 127  # 1/100 pt → EMU
     marL = int(pPr.get('marL') or 0)
     indent = int(pPr.get('indent') or 0)
     bullet_x = marL + min(indent, 0)
@@ -183,14 +187,87 @@ def _merge(p_el, q_el):
     q_el.getparent().remove(q_el)
 
 
+def _sig(r):
+    """run の強調の書式（太字・斜体・下線・色）"""
+    rPr = r.find(qn('a:rPr'))
+    if rPr is None:
+        return ('0', '0', 'none', b'')
+    fill = rPr.find(qn('a:solidFill'))
+    return (rPr.get('b', '0'), rPr.get('i', '0'), rPr.get('u', 'none'),
+            etree.tostring(fill) if fill is not None else b'')
+
+
+def _label_width(label):
+    """ラベルの幅（全角=1）の見積もり。欧文はプロポーショナルなので大文字・数字を広めに"""
+    n = 0.0
+    for ch in label:
+        if ord(ch) > 0xff:
+            n += 1
+        elif ch.isupper() or ch.isdigit():
+            n += 0.65
+        else:
+            n += 0.55
+    return n
+
+
+def _rtext(r):
+    return ''.join(t.text or '' for t in r.iter(qn('a:t')))
+
+
+def label_split(p_el):
+    """「共通の注意 本文」のように、強調したラベル（太字や色違い）の後に本文が続く段落なら
+    (ラベルの run の一覧, 本文の最初の run, ラベル文字列) を返す。違えば None"""
+    kids = _content(p_el)
+    if not kids or etree.QName(kids[0]).localname != 'r':
+        return None
+    first = _sig(kids[0])
+    k = 0
+    while k < len(kids) and etree.QName(kids[k]).localname == 'r' and _sig(kids[k]) == first:
+        k += 1
+    if k >= len(kids) or etree.QName(kids[k]).localname != 'r':
+        return None
+    body_sig = _sig(kids[k])
+    if not ((first[0] == '1' and body_sig[0] != '1') or first[3] != body_sig[3]):
+        return None
+    raw = ''.join(_rtext(r) for r in kids[:k])
+    label = raw.strip(' \t　')
+    body = ''.join(_rtext(r) if etree.QName(r).localname == 'r' else '\v' for r in kids[k:])
+    if not label or _label_width(label) > 8 or not body.strip():
+        return None
+    if not (raw[-1:] in (' ', '\t', '　') or body[:1] in (' ', '\t', '　') or label[-1] in '：:'):
+        return None
+    return kids[:k], kids[k], label
+
+
+def set_label_hanging(p_el, sh):
+    """ラベルの後をタブにし、ラベルの幅でぶら下げる（2行目以降が本文の先頭に揃う）"""
+    labels, body, label = label_split(p_el)
+    for r in reversed(labels):  # ラベル末尾の空白を消す
+        t = r.find(qn('a:t'))
+        t.text = (t.text or '').rstrip(' \t　')
+        if t.text:
+            break
+    t = body.find(qn('a:t'))
+    t.text = '\t' + (t.text or '').lstrip(' \t　')
+    rPr = labels[0].find(qn('a:rPr'))
+    sz = int(rPr.get('sz')) if rPr is not None and rPr.get('sz') else font_size(p_el, sh)
+    bold = 1.05 if rPr is not None and rPr.get('b') == '1' else 1.0
+    w = int((_label_width(label) * bold + 0.5) * sz * 127)  # 0.5字分は本文との間隔
+    set_hanging(p_el, sh, w=w)
+
+
 def fix_bullets(tf, sh, font):
-    """文字の記号を箇条書きに、続きの段落を段落内改行に、ぶら下げの無い箇条書きを直す。
+    """文字の記号を箇条書きに、ラベル付きの段落をラベル幅のぶら下げに、続きの段落を段落内改行に、
+    ぶら下げの無い箇条書きを直す。
     戻り値: (記号を直した数, ぶら下げを付けた数, つないだ段落の一覧[(前, 後)])"""
     converted, hanged, merged = 0, 0, []
-    txBody = tf._txBody
+
+    def paras():
+        return tf._txBody.findall(qn('a:p'))
+
     k = 0
-    while k < len(txBody.findall(qn('a:p'))):
-        p = txBody.findall(qn('a:p'))[k]
+    while k < len(paras()):
+        p = paras()[k]
         k += 1
         text = para_text(p)
         char = text_bullet(text)
@@ -200,41 +277,62 @@ def fix_bullets(tf, sh, font):
             _strip_leading(_content(p), LEAD_SPACE)
             set_hanging(p, sh, char, font)
             converted += 1
-            # 直後の記号の無い段落は、この項目の続きとみなしてつなぐ
-            while k < len(txBody.findall(qn('a:p'))):
-                q = txBody.findall(qn('a:p'))[k]
-                qt = para_text(q)
-                if not qt.strip() or text_bullet(qt) or explicit_bullet(q) or level(q) != level(p):
-                    break
-                merged.append((para_text(p).replace('\v', '⏎'), qt.strip()))
-                _merge(p, q)
-            _strip_after_breaks(p)
-        elif explicit_bullet(p) and text.strip() and not has_hanging(p, sh):
-            set_hanging(p, sh)
-            _strip_after_breaks(p)
-            hanged += 1
+        elif not explicit_bullet(p) and label_split(p):
+            if label_without_hanging(p) or not _rtext(label_split(p)[1]).startswith('\t'):
+                set_label_hanging(p, sh)
+                hanged += 1
+        else:
+            if explicit_bullet(p) and text.strip() and not has_hanging(p, sh):
+                set_hanging(p, sh)
+                _strip_after_breaks(p)
+                hanged += 1
+            continue
+        # 直後の、記号もラベルも無い段落は、この項目の続きとみなしてつなぐ
+        while k < len(paras()):
+            q = paras()[k]
+            qt = para_text(q)
+            if (not qt.strip() or text_bullet(qt) or explicit_bullet(q) or label_split(q)
+                    or level(q) != level(p)):
+                break
+            merged.append((para_text(p).replace('\v', '⏎').replace('\t', ' '), qt.strip()))
+            _merge(p, q)
+        _strip_after_breaks(p)
     return converted, hanged, merged
+
+
+def label_without_hanging(p_el):
+    """ラベル付きの段落で、ぶら下げが無いもの（折り返すと2行目がラベルの下に来る）"""
+    if explicit_bullet(p_el) or not label_split(p_el):
+        return False
+    pPr = p_el.find(qn('a:pPr'))
+    return int(pPr.get('indent') or 0) >= 0 if pPr is not None else True
 
 
 def bullet_issues(tf, sh):
     """lint 用: (段落番号, 指摘) を返す"""
     out = []
-    prev_text_bullet = False
+    prev = None  # 直前の段落が「文字の記号の箇条書き」「ラベル付きの段落」なら、その種類
     for n, p in enumerate(tf._txBody.findall(qn('a:p')), 1):
         text = para_text(p)
         if not text.strip():
-            prev_text_bullet = False
+            prev = None
             continue
         if text_bullet(text):
             out.append((n, f'箇条書きの「{text_bullet(text)}」が文字（2行目以降が揃わない）'))
-            prev_text_bullet = True
+            prev = '箇条書き'
             continue
-        if prev_text_bullet and not explicit_bullet(p):
-            out.append((n, '箇条書きの続きが別の段落（段落内改行にする）'))
+        if not explicit_bullet(p) and label_split(p):
+            if label_without_hanging(p) and '\v' in text:
+                out.append((n, 'ラベル付きの段落にぶら下げが無い（2行目がラベルの下に来る）'))
+            prev = 'ラベル付きの段落'
             continue
-        prev_text_bullet = False
+        if prev and not explicit_bullet(p):
+            out.append((n, f'{prev}の続きが別の段落（段落内改行にする）'))
+            continue
+        prev = None
         if explicit_bullet(p) and not has_hanging(p, sh):
             out.append((n, 'ぶら下げインデントが無い（2行目以降が記号の下に来る）'))
         if re.search(r'\v[ \t　]+', text):
             out.append((n, '改行後を空白で字下げしている'))
     return out
+
