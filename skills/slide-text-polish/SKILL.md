@@ -6,17 +6,21 @@ license: MIT
 
 # スライド文章チェック＆修正（日本語）
 
-AIが作った既存の .pptx を後から直すスキル。体裁（言語・フォント・改行）だけでなく、**文章量そのものを減らし、削った結果に改悪がないかを機械的に検証する**。チャットだけで完結し、PowerPoint実機が使える環境では実機で最終確認する。
+AIが作った既存の .pptx を後から直すスキル。体裁（言語・フォント・改行）だけでなく、**文章量そのものを減らし、削った結果に改悪がないかを機械的に検証する**。最後に PowerPoint 実機で表示を確認する。
+
+**動作環境：Windows＋PowerPoint（デスクトップ版）がインストールされていること、uv が使えること。** 手順6は PowerPoint 実機（COM）を使う。
 
 **手順6（実機での確認）はこのスキルの肝で、省略しない。** スクリプトの改行は推定で、実際の表示（フォントの置き換え・禁則・ぶら下げ）とは食い違う。推定で指摘が0件でも、修正が小さくても、時間がかかっても必ず行う。
 
 スクリプトはこのスキルの `scripts/` にある。作業用フォルダにコピーしてから使う。
 
-Python は [uv](https://docs.astral.sh/uv/) で実行する。依存パッケージ（python-pptx・budoux）を `--with` で指定すれば自動で入る。`pip install` や `python` の直接実行はしない。
+Python は [uv](https://docs.astral.sh/uv/) で実行する。依存パッケージ（python-pptx・budoux）は `--with` で指定する。`pip install` や `python` の直接実行はしない。
 
+外部と通信しないよう、コマンドには `--offline` を付けて uv のキャッシュにあるパッケージだけで動かす（付けないと uv は実行のたびに PyPI へ新しい版を問い合わせる）。最初に次を実行して確かめる：
 ```bash
-uv run --with python-pptx --with budoux python scripts/lint.py --help
+uv run --offline --with python-pptx --with budoux python scripts/lint.py --help
 ```
+「Packages were unavailable because the network was disabled」で失敗したときは、パッケージがまだキャッシュに無い。その1回だけ `--offline` を外して実行し、ダウンロードしてから以降は `--offline` で続ける。スクリプト自体は外部と通信しない。
 
 ## いつ使うか
 - スライド・PowerPointを作り終えた直後（納品前の仕上げとして自動で実行）
@@ -73,14 +77,14 @@ uv run --with python-pptx --with budoux python scripts/lint.py --help
 
 ### 1. 言語・フォント・箇条書きの修正（自動、最優先）
 ```bash
-uv run --with python-pptx --with budoux python scripts/fix_lang_font.py 元.pptx work.pptx --font 游ゴシック
+uv run --offline --with python-pptx --with budoux python scripts/fix_lang_font.py 元.pptx work.pptx --font 游ゴシック
 ```
 日本語のrun・段落末を `ja-JP` にし、`err` を消し、和文フォントが未指定・欧文なら設定、斜体を解除。テーマの東アジアフォントも直す。
 箇条書きは、行頭に文字で打った「・」「•」「■」などを箇条書きの記号に変えてぶら下げインデントを付け、その直後の記号もラベルも無い段落（Enter で改行した続き・空白で字下げした続き）を段落内改行でつなぐ。記号があるのにぶら下げの無い段落にもぶら下げを付ける。太字や色違いのラベルで始まる段落は、ラベルの後の空白をタブにしてラベルの幅でぶら下げ、続きの段落も同じようにつなぐ。つないだ段落は「意図どおりか要確認」として出力されるので、手順6の画像で確認する。元ファイルは上書きしない。
 
 ### 2. チェック
 ```bash
-uv run --with python-pptx --with budoux python scripts/lint.py work.pptx --glossary glossary.txt --json issues.json
+uv run --offline --with python-pptx --with budoux python scripts/lint.py work.pptx --glossary glossary.txt --json issues.json
 ```
 テキストボックス、グループ内の図形、表のセル、グラフのタイトル・軸・項目名・凡例まで調べ、文字数・項目数・言語・フォント・箇条書き・改行の問題を一覧にする（文字サイズは変更しない方針のため指摘しない）。改行は枠の幅からの推定（手順6で実機の値に置き換える）。推定の結果は手順6の代わりにならない。
 
@@ -91,11 +95,11 @@ uv run --with python-pptx --with budoux python scripts/lint.py work.pptx --gloss
 3. 1項目に2つの情報があれば分ける、項目が多ければスライドを分ける
 4. それでも収まらないときだけボックス幅を広げる。文字サイズは変えない
 
-書式（色・太字・サイズ）を保つため、python-pptx で run のテキストだけを置き換える（書き換え用のスクリプトは `uv run --with python-pptx python 書き換え.py` で実行する）。runが複数ある段落は強調部分の書式が残るよう対応を取る。修正前後を記録しておく。
+書式（色・太字・サイズ）を保つため、python-pptx で run のテキストだけを置き換える（書き換え用のスクリプトは `uv run --offline --with python-pptx python 書き換え.py` で実行する）。runが複数ある段落は強調部分の書式が残るよう対応を取る。修正前後を記録しておく。
 
 ### 4. 改悪チェック（自動、必須）
 ```bash
-uv run --with python-pptx --with budoux python scripts/check_loss.py work.pptx short.pptx --glossary glossary.txt
+uv run --offline --with python-pptx --with budoux python scripts/check_loss.py work.pptx short.pptx --glossary glossary.txt
 ```
 数字（単位込み）・カタカナ語や英字の用語・辞書の語が資料から消えていないか、否定表現が変わっていないかを照合する（別のスライドに移しただけなら消失扱いにしない）。**指摘が出たら書き直すか、報告で「要確認」として目立たせる。** 文の意味（主語・因果・条件）が変わっていないかは、Claudeが修正前後を並べて読み直して確認する。
 
@@ -106,43 +110,28 @@ uv run --with python-pptx --with budoux python scripts/check_loss.py work.pptx s
 
 ### 6. 実機での確認（必須・省略しない）
 
-環境に応じて方法を選ぶが、**確認そのものは省略しない**。上の行の方法ほど正確なので、使える中で一番上を使う。Windowsでは、まず `check_ppt.ps1` を実行してみる（PowerPointが入っているかは実行して確かめる。実行する前に「使えない」と判断しない）。
+`check_ppt.ps1` で PowerPoint 実機からスライドの画像（JPEG）と実際に表示された行（lines.tsv）を書き出し、その行で `lint.py` を実行し直す。PowerPointが使えるかは実行して確かめる（実行する前に「使えない」と判断しない）。
 
-| 環境 | 方法 | 精度 |
-|---|---|---|
-| Windows＋PowerPointでコマンドを実行できる | `check_ppt.ps1` でJPEG＋実際の行を取得 | 実機そのもの |
-| Mac＋PowerPointでコマンドを実行できる | `render_mac.sh` でPDF→画像 | 見た目は実機、行の判定は推定 |
-| それ以外（チャットの作業環境など） | LibreOfficeで画像化＋推定。スクリプトを渡してユーザーのPCで実行してもらう選択肢も示す | 目安 |
-
-Windows：
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\check_ppt.ps1 -Path C:\work\short.pptx -Out C:\work\check
-uv run --with python-pptx --with budoux python scripts\lint.py short.pptx --lines C:\work\check\lines.tsv --glossary glossary.txt
+uv run --offline --with python-pptx --with budoux python scripts\lint.py short.pptx --lines C:\work\check\lines.tsv --glossary glossary.txt
 ```
-
-それ以外：
-```bash
-fc-list :lang=ja | head   # 空なら fonts-noto-cjk 等を入れる（無いと実際と違う改行で描画される）
-soffice --headless --convert-to pdf short.pptx
-pdftoppm -r 80 -png short.pdf slide
-```
-LibreOfficeは游ゴシック等を持たないため、PowerPoint実機とは改行がずれうる。この方法だけで確認した場合は報告にその旨を添える。
 
 画像は**全スライドを1枚ずつ**見て、はみ出し・重なり・詰め込み・グラフの文字の切れや重なり・フォントの不揃い・箇条書きの2行目の位置・遠くから読めるかを確認する。指摘が残れば手順3〜5に戻り、ゼロになるまで繰り返す。手順3〜5に戻って直したら、手順6もやり直す。
 
-どの方法も実行できなかった場合（PowerPointもLibreOfficeも無い等）は、報告の最初に「**実機確認：未実施**」と理由を書き、ユーザーのPCで実行するコマンド（上のWindows／Macの手順）を示す。黙って省略したり、推定の結果だけで「問題なし」と報告したりしない。
+`check_ppt.ps1` を実行できなかった場合（Windowsでない、PowerPointが無い等）は、報告の最初に「**実機確認：未実施**」と理由を書き、Windows＋PowerPointのPCで実行するコマンド（上の手順）を示す。黙って省略したり、推定の結果だけで「問題なし」と報告したりしない。
 
 ## 完了の条件
 
 次がすべてそろうまで報告しない。
 - [ ] 最終版のファイルで手順6を行った（修正の途中のファイルではない）
-- [ ] Windowsでは `lint.py --lines` の出力が「改行の判定: PowerPoint実機」になっていて、「lines.tsv と本文が一致しない」の警告が出ていない（出たら最終版で `check_ppt.ps1` を実行し直す）
+- [ ] `lint.py --lines` の出力が「改行の判定: PowerPoint実機」になっていて、「lines.tsv と本文が一致しない」の警告が出ていない（出たら最終版で `check_ppt.ps1` を実行し直す）
 - [ ] 全スライドの画像を見た
 - [ ] 実施できなかった場合は「実機確認：未実施」と理由を報告に書いた
 
 ## 出力
 - 修正済みファイルを別名で保存（例：`元の名前_修正版.pptx`）。元ファイルは上書きしない
-- 最初に1行で：確認方法（PowerPoint実機／Mac実機／LibreOffice／未実施）・見た画像の枚数と、指摘件数の修正前→修正後
+- 最初に1行で：実機確認（実施／未実施）・見た画像の枚数と、指摘件数の修正前→修正後
 - 言語・フォントを直した件数（1行）
 - 文章の変更一覧：
 
